@@ -31,7 +31,58 @@ class Blockchain:
         signature = pkcs1_15.new(self.private_key).sign(hash_block)
         return signature
 
-    
+    def compute_hash(self, block):
+        block_content = block.copy()
+        block_content = {key: block_content[key] for key in block_content if key != 'signature'}
+        encode = json.dumps(block_content, sort_keys=True).encode()
+        return hashlib.sha512(encode).hexdigest()
+
+    def proof_of_work(self, index, previous_hash, transactions):
+        nonce = 0
+        while True:
+            if self.validate(index, previous_hash, transactions, nonce):
+                return nonce
+            nonce += 1
+
+    def validate(self, index, previous_hash, transactions, nonce):
+        data = f"{index}{previous_hash}{transactions}{nonce}".encode()
+        hashed = hashlib.sha512(data).hexdigest()
+        return hashed.startswith(self.difficulty)
+
+    def add_certificate(self, certificate_hash):
+        last_block = self.chain[-1]
+        index = last_block['index'] + 1
+        previous_hash = self.compute_hash(last_block)
+        nonce = self.proof_of_work(index, previous_hash, [certificate_hash])
+        
+        block = {
+            'index': index,
+            'timestamp': time.time(),
+            'transactions': [certificate_hash],
+            'nonce': nonce,
+            'previous_hash': previous_hash,
+        }
+        block['signature'] = self.sign_block(block).hex()
+        self.chain.append(block)
+
+    def verify_certificate(self, certificate_hash):
+        for block in self.chain:
+            if certificate_hash in block['transactions']:
+                return True
+        return False
+
+    def verify_signature(self,block,public_key):
+        signature = block['signature']
+        byteform = bytes.fromhex(signature)
+        content = block.copy()
+        content = {key: content[key] for key in content if key != 'signature'}
+
+        try:
+            hash_block = SHA512.new(json.dumps(content).encode())
+            pkcs1_15.new(public_key).verify(hash_block,byteform)
+            return True
+        except (ValueError,TypeError):
+            return False
 
    
 
